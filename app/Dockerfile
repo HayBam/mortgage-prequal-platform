@@ -3,13 +3,13 @@
 # and nothing beyond what the app needs to run.
 
 # ---- Stage 1: install dependencies ----
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 WORKDIR /build
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ---- Stage 2: runtime image ----
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 # The Git commit SHA, passed in by the pipeline and served at /version.
 ARG APP_VERSION=dev
