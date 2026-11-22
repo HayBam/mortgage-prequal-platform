@@ -1,0 +1,140 @@
+# Infrastructure pipeline.
+#   Pull request -> fmt, validate, Checkov scan, plan (shown in the log for review)
+#   Merge to main -> the same checks, then APPLY, which waits for approval
+#                    in the "production" environment
+#   Manual run    -> apply, or destroy (also behind the approval)
+#
+# No Azure secrets are stored: GitHub issues a short-lived OIDC token, and Entra
+# ID trusts it only for this repo's main branch, its pull requests, and the
+# production environment (the federated credentials from the bootstrap script).
+name: terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "apply = create/update everything; destroy = delete everything Terraform manages"
+        type: choice
+        options: [apply, destroy]
+        default: apply
+
+permissions:
+  contents: read
+  id-token: write # allows the job to request the OIDC token used to sign in to Azure
+
+# One Terraform run at a time across the whole repo (there is one state file).
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: 1.14.5
+  CHECKOV_VERSION: 3.4.6
+  # Read by the azurerm provider AND the azurerm backend.
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC: "true"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  # Terraform input variables (TF_VAR_<name>). Kept as secrets so they are masked in public logs.
+  TF_VAR_admin_object_id: ${{ secrets.ADMIN_OBJECT_ID }}
+  # "-destroy" only for a manual run with action=destroy, otherwise empty.
+  DESTROY_FLAG: ${{ github.event_name == 'workflow_dispatch' && inputs.action == 'destroy' && '-destroy' || '' }}
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  plan:
+    name: Validate, scan and plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive -diff
+
+      - name: Init (remote state in Azure Storage)
+        run: >
+          terraform init
+          -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}"
+          -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+          -backend-config="container_name=tfstate"
+          -backend-config="key=mortgage-prequal.tfstate"
+
+      - name: Validate
+        run: terraform validate
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Checkov security scan (fails the build on any un-justified finding)
+        run: |
+          pip install --quiet "checkov==${CHECKOV_VERSION}"
+          checkov -d . --framework terraform --quiet --compact
+
+      - name: Plan
+        run: |
+          terraform plan -lock-timeout=5m -out=tfplan $DESTROY_FLAG
+          terraform show -no-color tfplan
+          {
+            echo "### Terraform plan"
+            echo '```'
+            terraform show -no-color tfplan | grep -E '^Plan:|No changes' || true
+            echo '```'
+            echo "Full plan: see the **Plan** step log of this job."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: Apply (needs approval)
+    needs: plan
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    # The production environment has "required reviewers": the job pauses here
+    # until you click "Approve and deploy". Its OIDC token subject is
+    # repo:<owner>/<repo>:environment:production.
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Init (remote state in Azure Storage)
+        run: >
+          terraform init
+          -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}"
+          -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+          -backend-config="container_name=tfstate"
+          -backend-config="key=mortgage-prequal.tfstate"
+
+      - name: Apply
+        if: env.DESTROY_FLAG == ''
+        run: |
+          terraform apply -auto-approve -lock-timeout=5m
+          {
+            echo "### Terraform outputs"
+            echo '```'
+            terraform output -no-color
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Destroy
+        if: env.DESTROY_FLAG == '-destroy'
+        run: terraform destroy -auto-approve -lock-timeout=5m

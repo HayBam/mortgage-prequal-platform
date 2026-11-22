@@ -1,0 +1,4 @@
+# Keep LF line endings on every OS. Bash scripts with Windows (CRLF) endings
+# fail with "$'\r': command not found".
+* text=auto eol=lf
+*.png binary

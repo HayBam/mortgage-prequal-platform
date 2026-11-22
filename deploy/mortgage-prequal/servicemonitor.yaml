@@ -1,0 +1,18 @@
+# Tells Prometheus to scrape /metrics on the app every 15 seconds.
+# ServiceMonitor is a custom resource type installed by kube-prometheus-stack.
+# The annotation lets ArgoCD sync this file even if the monitoring stack's
+# CRDs are not installed yet; ArgoCD retries until they are.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mortgage-prequal
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mortgage-prequal
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

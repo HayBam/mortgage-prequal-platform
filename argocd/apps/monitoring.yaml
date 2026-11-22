@@ -1,0 +1,73 @@
+# Prometheus + Grafana + Alertmanager (kube-prometheus-stack), installed and
+# managed by Argo CD from the official Helm chart, with the version pinned.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: platform
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.17.0
+    helm:
+      releaseName: kube-prometheus-stack
+      valuesObject:
+        # AKS runs the control plane for us, so these components cannot be
+        # scraped. Cilium replaces kube-proxy. Turning them off avoids
+        # permanently "down" targets.
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+
+        prometheus:
+          prometheusSpec:
+            # Pick up ServiceMonitors and PrometheusRules from ANY namespace,
+            # not only ones labelled for this Helm release. This lets app teams
+            # ship monitoring with their app.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            retention: 2d
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 1536Mi
+
+        alertmanager:
+          alertmanagerSpec:
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+
+        grafana:
+          # Admin login comes from a Kubernetes Secret created by hand (see
+          # scripts/install-argocd.sh). No password in Git.
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          defaultDashboardsTimezone: browser
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The chart's CRDs are too large for a normal "kubectl apply". Server-side
+      # apply avoids the "annotation too long" error.
+      - ServerSideApply=true

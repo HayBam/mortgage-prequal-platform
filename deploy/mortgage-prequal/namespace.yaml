@@ -1,0 +1,12 @@
+# The app's namespace. Pod Security Admission "restricted" makes Kubernetes
+# REJECT any pod that runs as root, can escalate privileges, keeps Linux
+# capabilities or uses host networking. This is a guardrail enforced by the
+# cluster itself, not just a convention.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mortgage-prequal
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

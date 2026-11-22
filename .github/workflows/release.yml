@@ -1,0 +1,128 @@
+# Release pipeline (continuous integration up to a release PR).
+#   test -> build -> Trivy gate -> SBOM -> push to ACR -> open a PR that
+#   changes deploy/mortgage-prequal/kustomization.yaml to the new image digest.
+#
+# This pipeline never touches the cluster. Merging the release PR is the
+# production approval; Argo CD then deploys it (GitOps pull model).
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write      # push the release branch
+  pull-requests: write # open the release pull request
+  id-token: write      # OIDC sign-in to Azure, to push to ACR
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: mortgage-prequal
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.76.1
+
+jobs:
+  release:
+    # Skipped (not failed) until ACR_NAME is set, i.e. before the first terraform apply.
+    if: vars.ACR_NAME != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set image coordinates
+        run: |
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "REGISTRY=${ACR_NAME}.azurecr.io" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Unit and API tests
+        working-directory: app
+        run: |
+          pip install -r requirements-dev.txt
+          pytest -q
+
+      - name: Build image
+        run: docker build --build-arg APP_VERSION="$SHORT_SHA" -t "$REGISTRY/$IMAGE_NAME:$SHORT_SHA" app
+
+      - name: Trivy vulnerability gate (HIGH/CRITICAL with a fix available = fail)
+        run: |
+          mkdir -p evidence
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME/.cache/trivy:/root/.cache/trivy" -v "$PWD/evidence:/out" "$TRIVY_IMAGE" \
+            image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+            --format table --output /out/trivy-report.txt "$REGISTRY/$IMAGE_NAME:$SHORT_SHA" \
+            || { cat evidence/trivy-report.txt; exit 1; }
+          cat evidence/trivy-report.txt
+
+      - name: Generate SBOM (CycloneDX) - list of every package in the image
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME/.cache/trivy:/root/.cache/trivy" -v "$PWD/evidence:/out" "$TRIVY_IMAGE" \
+            image --format cyclonedx --output /out/sbom.cdx.json --no-progress "$REGISTRY/$IMAGE_NAME:$SHORT_SHA"
+
+      - name: Keep the evidence (scan report + SBOM) for 90 days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-evidence-${{ env.SHORT_SHA }}
+          path: evidence/
+          retention-days: 90
+
+      - name: Azure sign-in (OIDC, no stored secret)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Push to ACR and capture the immutable digest
+        run: |
+          az acr login --name "$ACR_NAME"
+          docker push "$REGISTRY/$IMAGE_NAME:$SHORT_SHA"
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY/$IMAGE_NAME:$SHORT_SHA" | cut -d@ -f2)
+          echo "DIGEST=$DIGEST" >> "$GITHUB_ENV"
+          echo "Pushed $REGISTRY/$IMAGE_NAME:$SHORT_SHA ($DIGEST)"
+
+      - name: Open release pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="release/${IMAGE_NAME}-${SHORT_SHA}-${GITHUB_RUN_ATTEMPT}" # unique even if the run is re-tried
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+
+          # Change only the image section of the kustomization (yq is preinstalled on GitHub runners).
+          yq -i "
+            .images[0].newName = \"${REGISTRY}/${IMAGE_NAME}\" |
+            .images[0].digest = \"${DIGEST}\" |
+            del(.images[0].newTag)
+          " deploy/mortgage-prequal/kustomization.yaml
+
+          git add deploy/mortgage-prequal/kustomization.yaml
+          git commit -m "release: ${IMAGE_NAME} ${SHORT_SHA}"
+          git push origin "$BRANCH"
+
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          cat > pr-body.md <<EOF
+          ## Release ${IMAGE_NAME} \`${SHORT_SHA}\`
+
+          | | |
+          |---|---|
+          | Source commit | ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA} |
+          | Image | \`${REGISTRY}/${IMAGE_NAME}:${SHORT_SHA}\` |
+          | Digest (what will run) | \`${DIGEST}\` |
+          | Tests | passed |
+          | Trivy (HIGH/CRITICAL, fixable) | 0 found |
+          | Evidence (scan report + SBOM) | ${RUN_URL} (artifact \`release-evidence-${SHORT_SHA}\`) |
+
+          **Merging this pull request approves the production release.** Argo CD deploys it within about a minute.
+          EOF
+
+          gh pr create --base main --head "$BRANCH" \
+            --title "Release ${IMAGE_NAME} ${SHORT_SHA}" --body-file pr-body.md

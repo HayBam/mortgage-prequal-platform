@@ -1,0 +1,17 @@
+# Internal-only (ClusterIP) service. There is no public endpoint. For the demo we
+# reach it with `kubectl port-forward`. In production, brokers would come in
+# through Application Gateway with WAF on a private ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mortgage-prequal
+  labels:
+    app.kubernetes.io/name: mortgage-prequal
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mortgage-prequal
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

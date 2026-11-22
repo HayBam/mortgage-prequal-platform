@@ -1,0 +1,7 @@
+# Runtime dependencies, pinned to exact versions so every build is the same.
+# Dependabot (.github/dependabot.yml) opens a PR when a newer version is out,
+# and the pipeline's Trivy scan fails the build if a pinned version gets a
+# HIGH or CRITICAL vulnerability.
+fastapi==0.165.0
+uvicorn==0.54.0
+prometheus-client==0.26.0

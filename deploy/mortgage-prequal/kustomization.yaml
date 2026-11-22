@@ -1,0 +1,45 @@
+# Kustomize assembles the manifests in this folder. ArgoCD runs
+# `kustomize build` on this folder and applies the result.
+#
+# The `images` section is the ONLY thing the release pipeline changes. It opens
+# a pull request that sets newName (your ACR) and digest (the image it just
+# built and scanned). Merging that pull request is the production release
+# approval.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mortgage-prequal
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: mortgage-prequal-platform
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - secretproviderclass.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+  - servicemonitor.yaml
+  - prometheusrule.yaml
+  - grafana-dashboard.yaml
+
+# Business rules as configuration. configMapGenerator adds a hash of the
+# contents to the ConfigMap name (e.g. mortgage-prequal-config-7f9c2b), so
+# changing a limit changes the name, which triggers a rolling restart of the
+# pods. Changing a lending limit is therefore a reviewed pull request: approved,
+# recorded in Git history and deployed by Argo CD. That is the audit trail
+# for a rule change.
+configMapGenerator:
+  - name: mortgage-prequal-config
+    literals:
+      - GDS_LIMIT=0.39
+      - TDS_LIMIT=0.44
+
+# The all-zero digest is a placeholder until the first release PR replaces it.
+images:
+  - name: mortgage-prequal
+    newName: REPLACE_ACR_NAME.azurecr.io/mortgage-prequal
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

@@ -1,0 +1,32 @@
+# The mortgage API. Argo CD watches deploy/mortgage-prequal on the main branch
+# and keeps the cluster identical to it.
+#   automated  - deploy when Git changes (after the release PR is merged)
+#   prune      - delete objects that were removed from Git
+#   selfHeal   - undo manual changes (kubectl edit/scale) within seconds: drift control
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mortgage-prequal
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1" # after the monitoring stack, whose CRDs we use
+spec:
+  project: banking
+  source:
+    repoURL: https://github.com/REPLACE_GITHUB_OWNER/mortgage-prequal-platform.git
+    targetRevision: main
+    path: deploy/mortgage-prequal
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mortgage-prequal
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10 # covers the first install, while the monitoring CRDs are still being created
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 20 # keep the last 20 deployments in the Argo CD history view

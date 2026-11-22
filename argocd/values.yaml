@@ -1,0 +1,24 @@
+# Helm values for installing Argo CD (chart argo/argo-cd 10.11.6 = Argo CD v3.5.6).
+# Used once by scripts/install-argocd.sh. Kept small on purpose.
+
+# Dex is Argo CD's built-in SSO broker. Not needed for a one-person demo.
+# In a bank, Argo CD sign-in would go through Entra ID SSO, with groups mapped
+# to Argo CD roles.
+dex:
+  enabled: false
+
+# Notifications (Slack, Teams, email on sync events) are not needed for the demo.
+notifications:
+  enabled: false
+
+configs:
+  cm:
+    # Check Git for changes every 60 seconds (default 120s). Brings the demo
+    # loop down to about a minute. A webhook would make it instant, but needs a
+    # public Argo CD endpoint, which we deliberately do not expose.
+    timeout.reconciliation: 60s
+    timeout.reconciliation.jitter: 10s
+  rbac:
+    # Anyone who logs in without a specific role is read-only. Only admin can
+    # sync or change applications.
+    policy.default: role:readonly

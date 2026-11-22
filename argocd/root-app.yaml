@@ -1,0 +1,22 @@
+# The "app of apps". This is the ONLY manifest applied by hand (once, by
+# scripts/install-argocd.sh). It points Argo CD at the argocd/apps folder in
+# Git, and everything else (projects, the monitoring stack, the mortgage API) is
+# defined there. From now on, every change to the cluster comes from Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_GITHUB_OWNER/mortgage-prequal-platform.git
+    targetRevision: main
+    path: argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

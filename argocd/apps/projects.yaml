@@ -1,0 +1,46 @@
+# Argo CD Projects are guardrails: they limit WHAT an application may deploy
+# and WHERE. Two projects separate duties:
+#   platform - the monitoring stack. Can create cluster-wide objects (CRDs etc.).
+#   banking  - the mortgage API. Only its own namespace and only from our repo.
+#              It cannot create cluster-wide objects other than its namespace.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1" # create projects before the apps that use them
+spec:
+  description: Shared platform services (monitoring)
+  sourceRepos:
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: kube-system # the chart adds scrape Services for CoreDNS and the kubelet here
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: banking
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Broker mortgage pre-qualification API (application team)
+  sourceRepos:
+    - https://github.com/REPLACE_GITHUB_OWNER/mortgage-prequal-platform.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: mortgage-prequal
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  # Flag anything running in the namespace that is NOT in Git (e.g. something
+  # created by hand with kubectl). It shows up as a warning in the Argo CD UI.
+  orphanedResources:
+    warn: true

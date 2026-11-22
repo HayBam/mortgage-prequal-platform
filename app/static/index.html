@@ -1,0 +1,188 @@
+<!doctype html>
+<!--
+  Broker portal for the pre-qualification API.
+  Interview demonstration only: not affiliated with or endorsed by Haventree Bank.
+  The page calls the same POST /v1/prequalify endpoint as any broker system,
+  with the same X-API-Key check. It adds no new way into the system.
+  No inline scripts or styles: the server sends a strict Content-Security-Policy.
+-->
+<html lang="en-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Haventree Bank-Interview | Broker Pre-Qualification</title>
+  <link rel="icon" href="data:,">
+  <link rel="preload"href="/static/fonts/PlusJakartaSans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the form</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="wordmark" aria-label="Haventree Bank-Interview">Haventree Bank<span class="wordmark-tag">-Interview</span></div>
+      <nav class="topnav" aria-label="Portal">
+        <span class="topnav-item is-current">Broker pre-qualification</span>
+        <span class="status" id="status" title="Service readiness (/readyz)">
+          <span class="status-dot" aria-hidden="true"></span><span id="status-text">Checking service</span>
+        </span>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Mortgage brokers</p>
+      <h1>Pre-qualify your client in seconds.</h1>
+      <p class="hero-lede">Each decision applies the OSFI B-20 stress test and the bank's GDS and TDS limits.
+        You get a reference number that can be traced in the audit logs, and no customer details are stored.</p>
+    </div>
+  </section>
+
+  <main id="main" class="wrap layout">
+    <form id="prequal-form" class="card form-card" novalidate>
+      <div class="card-head">
+        <h2>Application</h2>
+        <div class="examples" role="group" aria-label="Load an example application">
+          <span class="examples-label">Try an example:</span>
+          <button type="button" class="chip" data-example="strong">Strong file</button>
+          <button type="button" class="chip" data-example="borderline">Borderline</button>
+          <button type="button" class="chip" data-example="high-debt">High debt</button>
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>Broker access</legend>
+        <div class="field">
+          <label for="api_key">Broker API key</label>
+          <input id="api_key" name="api_key" type="password" autocomplete="off" spellcheck="false" required
+                 aria-describedby="api_key_help">
+          <p class="help" id="api_key_help">Issued from Azure Key Vault. Sent in the X-API-Key header and never stored by this page.</p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Client and loan</legend>
+        <div class="grid-2">
+          <div class="field">
+            <label for="annual_income">Gross annual income</label>
+            <div class="affix"><span class="affix-pre">$</span>
+              <input id="annual_income" name="annual_income" type="number" inputmode="decimal" min="1" step="any" required></div>
+          </div>
+          <div class="field">
+            <label for="loan_amount">Mortgage amount</label>
+            <div class="affix"><span class="affix-pre">$</span>
+              <input id="loan_amount" name="loan_amount" type="number" inputmode="decimal" min="1" step="any" required></div>
+          </div>
+          <div class="field">
+            <label for="contract_rate">Contract rate</label>
+            <div class="affix"><input id="contract_rate" name="contract_rate" type="number" inputmode="decimal" min="0.01" max="25" step="0.01" required>
+              <span class="affix-post">%</span></div>
+          </div>
+          <div class="field">
+            <label for="amortization_years">Amortization</label>
+            <select id="amortization_years" name="amortization_years">
+              <option value="25" selected>25 years</option>
+              <option value="30">30 years</option>
+              <option value="20">20 years</option>
+              <option value="15">15 years</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Housing costs and other debts</legend>
+        <div class="grid-2">
+          <div class="field">
+            <label for="property_tax_annual">Property tax (annual)</label>
+            <div class="affix"><span class="affix-pre">$</span>
+              <input id="property_tax_annual" name="property_tax_annual" type="number" inputmode="decimal" min="0" step="any" value="0"></div>
+          </div>
+          <div class="field">
+            <label for="heating_monthly">Heating (monthly)</label>
+            <div class="affix"><span class="affix-pre">$</span>
+              <input id="heating_monthly" name="heating_monthly" type="number" inputmode="decimal" min="0" step="any" value="100"></div>
+          </div>
+          <div class="field">
+            <label for="condo_fees_monthly">Condo fees (monthly)</label>
+            <div class="affix"><span class="affix-pre">$</span>
+              <input id="condo_fees_monthly" name="condo_fees_monthly" type="number" inputmode="decimal" min="0" step="any" value="0"></div>
+          </div>
+          <div class="field">
+            <label for="other_debt_monthly">Other debt payments (monthly)</label>
+            <div class="affix"><span class="affix-pre">$</span>
+              <input id="other_debt_monthly" name="other_debt_monthly" type="number" inputmode="decimal" min="0" step="any" value="0"></div>
+          </div>
+        </div>
+      </fieldset>
+
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="submit">Check pre-qualification</button>
+        <button type="reset" class="btn btn-secondary">Clear</button>
+      </div>
+    </form>
+
+    <section class="card result-card" aria-labelledby="result-title">
+      <h2 id="result-title">Decision</h2>
+      <div id="result-empty" class="empty">
+        <div class="empty-mark" aria-hidden="true"></div>
+        <p>Fill in the application, or load an example, then select <strong>Check pre-qualification</strong>.</p>
+      </div>
+
+      <div id="result" hidden aria-live="polite">
+        <div class="verdict" id="verdict">
+          <span class="verdict-icon" aria-hidden="true"></span>
+          <div>
+            <p class="verdict-title" id="verdict-title"></p>
+            <p class="verdict-sub" id="verdict-sub"></p>
+          </div>
+        </div>
+
+        <dl class="figures">
+          <div><dt>Qualifying rate (stress test)</dt><dd id="qualifying_rate"></dd></div>
+          <div><dt>Monthly payment at that rate</dt><dd id="monthly_payment"></dd></div>
+        </dl>
+
+        <div class="meter" id="meter-gds">
+          <div class="meter-head"><span>GDS: housing costs / income</span><span class="meter-val"></span></div>
+          <div class="meter-track"><div class="meter-fill"></div><div class="meter-limit"></div></div>
+          <p class="meter-foot"></p>
+        </div>
+        <div class="meter" id="meter-tds">
+          <div class="meter-head"><span>TDS: all debts / income</span><span class="meter-val"></span></div>
+          <div class="meter-track"><div class="meter-fill"></div><div class="meter-limit"></div></div>
+          <p class="meter-foot"></p>
+        </div>
+
+        <ul class="reasons" id="reasons"></ul>
+
+        <div class="reference">
+          <div>
+            <p class="reference-label">Decision reference</p>
+            <code id="request_id"></code>
+          </div>
+          <button type="button" class="btn btn-ghost" id="copy-ref">Copy</button>
+        </div>
+        <p class="policy" id="policy"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p><strong>Haventree Bank-Interview</strong> is an interview demonstration project.
+        It is not affiliated with or endorsed by Haventree Bank, its rules are simplified, and it uses no real customer data.</p>
+      <p class="footer-meta">
+        <span>Release <code id="version">…</code></span>
+        <a href="/docs">API documentation</a>
+        <a href="/healthz">Health</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

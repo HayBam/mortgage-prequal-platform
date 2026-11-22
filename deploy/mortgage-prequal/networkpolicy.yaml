@@ -1,0 +1,31 @@
+# Zero-trust networking for the app namespace (enforced by Cilium).
+# 1. Deny ALL traffic in and out of every pod in the namespace by default.
+# 2. Allow ONLY Prometheus (in the monitoring namespace) to reach the app port.
+# The app makes no outbound calls, so egress stays fully blocked. A compromised
+# pod could not send data anywhere. (The Key Vault secret is fetched by the CSI
+# driver on the node, not by the pod.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mortgage-prequal
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8000

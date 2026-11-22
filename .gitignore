@@ -1,0 +1,23 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+terraform.tfvars
+backend.hcl
+# (.terraform.lock.hcl IS committed: it pins exact provider versions and checksums)
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Local outputs
+rendered.yaml
+evidence/
+pr-body.md
+.env
