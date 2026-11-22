@@ -16,7 +16,7 @@ terraform {
     # azurerm creates every Azure resource. "~> 4.81" means 4.81 or newer, but below 5.0.
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.81"
+      version = "~> 5.14"
     }
     # random generates the short suffix that makes globally unique names
     # (ACR and Key Vault names must be unique across all of Azure).
