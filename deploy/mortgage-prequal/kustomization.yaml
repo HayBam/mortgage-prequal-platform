@@ -41,5 +41,5 @@ configMapGenerator:
 # The all-zero digest is a placeholder until the first release PR replaces it.
 images:
   - name: mortgage-prequal
-    newName: REPLACE_ACR_NAME.azurecr.io/mortgage-prequal
+    newName: acrprequaldemod15xd.azurecr.io/mortgage-prequal
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

@@ -13,7 +13,7 @@ metadata:
 spec:
   project: banking
   source:
-    repoURL: https://github.com/REPLACE_GITHUB_OWNER/mortgage-prequal-platform.git
+    repoURL: https://github.com/HayBam/mortgage-prequal-platform.git
     targetRevision: main
     path: deploy/mortgage-prequal
   destination:

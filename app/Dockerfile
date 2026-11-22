@@ -18,11 +18,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION}
 
-# Apply the latest Debian security patches, then create an unprivileged user.
-# The container never runs as root.
+# Apply the latest Debian security patches, remove pip, then create an
+# unprivileged user. The container never runs as root.
+# pip comes with the base image but the app never uses it at runtime. pip also
+# carries its own vendored copies of urllib3, msgpack and setuptools, which
+# Trivy flags (HIGH) whenever those copies fall behind. Removing pip shrinks
+# the attack surface and drops those findings.
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/* \
+ && python -m pip uninstall -y pip \
+ && rm -f /usr/local/bin/pip /usr/local/bin/pip3* \
  && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 
 COPY --from=build /install /usr/local
