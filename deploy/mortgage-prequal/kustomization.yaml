@@ -7,14 +7,11 @@
 # approval.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 namespace: mortgage-prequal
-
 labels:
   - pairs:
       app.kubernetes.io/part-of: mortgage-prequal-platform
     includeSelectors: false
-
 resources:
   - namespace.yaml
   - serviceaccount.yaml
@@ -25,7 +22,6 @@ resources:
   - servicemonitor.yaml
   - prometheusrule.yaml
   - grafana-dashboard.yaml
-
 # Business rules as configuration. configMapGenerator adds a hash of the
 # contents to the ConfigMap name (e.g. mortgage-prequal-config-7f9c2b), so
 # changing a limit changes the name, which triggers a rolling restart of the
@@ -37,9 +33,8 @@ configMapGenerator:
     literals:
       - GDS_LIMIT=0.39
       - TDS_LIMIT=0.44
-
 # The all-zero digest is a placeholder until the first release PR replaces it.
 images:
   - name: mortgage-prequal
     newName: acrprequaldemod15xd.azurecr.io/mortgage-prequal
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:790ca049148d29ddc93658da80419899f951be9629d46b3fc2dd194ce2ef76a0
