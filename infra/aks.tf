@@ -181,7 +181,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   #checkov:skip=CKV_AZURE_115:Private cluster needs a VPN or jump box to reach the API. The demo uses a public API gated by Entra ID + Azure RBAC (local accounts disabled).
   #checkov:skip=CKV_AZURE_117:Customer-managed disk encryption keys are out of scope; disks use platform-managed encryption at rest.
   #checkov:skip=CKV_AZURE_170:Paid SLA tier (Standard) is not needed for a demo. Production would use Standard.
-  #checkov:skip=CKV_AZURE_226:Ephemeral OS disks need a VM size with a local cache disk; D2s_v5 has none.
+  #checkov:skip=CKV_AZURE_226:Ephemeral OS disks need a VM size with a local cache disk; D2s_v4 has none.
   #checkov:skip=CKV_AZURE_227:Encryption at host needs a subscription feature registration. Production would enable it.
   #checkov:skip=CKV_AZURE_232:A single node pool runs system and app pods to keep cost down. Production would split them.
   #checkov:skip=CKV_AZURE_6:No IP allowlist so the demo works from any network. Every API call still needs Entra ID + Azure RBAC (local accounts disabled). Production would set authorized IP ranges or use a private cluster.

@@ -13,9 +13,13 @@
 #   6. Least-privilege role assignments for that identity
 #   7. Turns on Microsoft Defender for Containers
 #
+# The build guide (Phase 2) shows how to do every step by hand in the Azure
+# portal instead; this script is the fast fallback. Check either way with
+# ./scripts/verify-bootstrap.sh.
+#
 # Run it from Git Bash or Azure Cloud Shell, after `az login`:
 #   ./scripts/bootstrap-azure.sh <github-owner> [repo-name]
-# It is safe to run again: existing items are reused.
+# It is safe to run again, or after a partial manual setup: existing items are reused.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 export MSYS_NO_PATHCONV=1 # Git Bash on Windows: do not rewrite /subscriptions/... into C:/...
@@ -31,8 +35,11 @@ SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 TENANT_ID=$(az account show --query tenantId -o tsv)
 ADMIN_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
 
-# Deterministic, globally unique-ish storage account name (3-24 lowercase letters/digits).
-SA_NAME="stprequaltf$(echo -n "$SUBSCRIPTION_ID" | md5sum | cut -c1-8)"
+# Reuse the state storage account if one exists (e.g. you started Phase 2 by
+# hand in the portal). Otherwise use a deterministic, globally unique-ish name
+# (3-24 lowercase letters/digits).
+SA_NAME=$(az storage account list --resource-group "$STATE_RG" --query "[0].name" -o tsv 2>/dev/null | tr -d '\r' || true)
+SA_NAME="${SA_NAME:-stprequaltf$(echo -n "$SUBSCRIPTION_ID" | md5sum | cut -c1-8)}"
 
 echo "Subscription: $SUBSCRIPTION_ID"
 echo "GitHub repo:  $GITHUB_OWNER/$GITHUB_REPO"
@@ -98,9 +105,11 @@ add_federated_credential "github-pull-request"   "repo:${GITHUB_OWNER}/${GITHUB_
 add_federated_credential "github-env-production" "repo:${GITHUB_OWNER}/${GITHUB_REPO}:environment:production"
 
 echo "[6/7] Role assignments (least privilege: one resource group, not the subscription)"
-assign() { # role, scope, principal, type
-  az role assignment create --role "$1" --scope "$2" \
-    --assignee-object-id "$3" --assignee-principal-type "$4" --output none
+assign() { # role, scope, principal, type. Skips a role that is already assigned (e.g. by hand).
+  if [ -z "$(az role assignment list --role "$1" --scope "$2" --assignee "$3" --query "[0].id" -o tsv)" ]; then
+    az role assignment create --role "$1" --scope "$2" \
+      --assignee-object-id "$3" --assignee-principal-type "$4" --output none
+  fi
   echo "   $1 -> $(basename "$2") ($4)"
 }
 assign "Contributor"                               "$APP_RG_ID" "$SP_OBJECT_ID" ServicePrincipal

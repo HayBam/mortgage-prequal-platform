@@ -50,7 +50,7 @@ app/                    Python FastAPI service, broker portal (app/static), test
 infra/                  Terraform (network, AKS, ACR, Key Vault, monitoring, identities)
 deploy/mortgage-prequal Kubernetes manifests (Kustomize) - what Argo CD deploys
 argocd/                 Argo CD install values, root app, projects, applications
-scripts/                bootstrap, manifest values, Argo CD install, smoke test, traffic, teardown
+scripts/                bootstrap + read-only bootstrap check, manifest values, Argo CD install, smoke test, traffic, teardown
 docs/                   runbook, RCA template, audit controls
 .github/workflows/      terraform.yml, app-ci.yml, release.yml
 ```

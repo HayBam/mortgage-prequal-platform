@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# teardown-azure.sh - removes what bootstrap-azure.sh created, AFTER Terraform
+# teardown-azure.sh - removes what the bootstrap (Phase 2) created, AFTER Terraform
 # has destroyed the platform (GitHub > Actions > terraform > Run workflow >
 # action = destroy).
 #

@@ -21,7 +21,7 @@ provider "azurerm" {
   # The pipeline identity only has rights on ONE resource group (least privilege).
   # By default azurerm tries to register resource providers across the whole
   # subscription, which would fail with those limited rights. The bootstrap
-  # script registers the providers once, so we turn that behaviour off here.
+  # (Phase 2) registers the providers once, so we turn that behaviour off here.
   resource_provider_registrations = "none"
 
   # Use Entra ID (not storage keys) for any storage data-plane calls.
