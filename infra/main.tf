@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 
 # "data" blocks READ something that already exists; they never create it.
-# The resource group is created by the bootstrap script, not by Terraform, so
+# The resource group is created in the bootstrap (Phase 2), not by Terraform, so
 # the pipeline identity can be limited to this one resource group.
 data "azurerm_resource_group" "this" {
   name = var.resource_group_name

@@ -6,7 +6,7 @@
 #
 # No Azure secrets are stored: GitHub issues a short-lived OIDC token, and Entra
 # ID trusts it only for this repo's main branch, its pull requests, and the
-# production environment (the federated credentials from the bootstrap script).
+# production environment (the federated credentials created in the bootstrap, build guide Phase 2).
 name: terraform
 
 on:

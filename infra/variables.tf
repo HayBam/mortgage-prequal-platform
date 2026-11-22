@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 variable "resource_group_name" {
-  description = "Existing resource group created by the bootstrap script. Terraform builds everything inside it."
+  description = "Existing resource group created in the bootstrap (Phase 2). Terraform builds everything inside it."
   type        = string
   default     = "rg-prequal-demo"
 }
@@ -55,9 +55,11 @@ variable "kubernetes_version" {
 }
 
 variable "node_vm_size" {
-  description = "VM size for the AKS nodes. D2s_v5 = 2 vCPU, 8 GiB RAM."
+  # New subscriptions often get 0 quota for DSv5 in Canada Central but 10 for
+  # DSv4. Check yours: az vm list-usage --location canadacentral -o table
+  description = "VM size for the AKS nodes. D2s_v4 = 2 vCPU, 8 GiB RAM (DSv4 family)."
   type        = string
-  default     = "Standard_D2s_v5"
+  default     = "Standard_D2s_v4"
 }
 
 variable "node_count" {
@@ -84,7 +86,7 @@ variable "log_retention_days" {
 }
 
 variable "enable_defender" {
-  description = "Deploy the Microsoft Defender for Containers sensor on AKS. Needs the Defender for Containers plan turned on for the subscription (the bootstrap script does this)."
+  description = "Deploy the Microsoft Defender for Containers sensor on AKS. Needs the Defender for Containers plan turned on for the subscription (done in the bootstrap, Phase 2)."
   type        = bool
   default     = true
 }
